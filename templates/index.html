@@ -1,0 +1,145 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>GitHub Webhook Events</title>
+    <style>
+        :root {
+            --primary-color: #2c3e50;
+            --background-color: #f8f9fa;
+            --card-bg: #ffffff;
+            --border-color: #e1e4e8;
+            --text-color: #24292e;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            background-color: var(--background-color);
+            color: var(--text-color);
+            margin: 0;
+            padding: 20px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+
+        h1 {
+            color: var(--primary-color);
+            margin-bottom: 30px;
+        }
+
+        #event-list {
+            list-style: none;
+            padding: 0;
+            width: 100%;
+            max-width: 800px;
+        }
+
+        .event-item {
+            background-color: var(--card-bg);
+            border: 1px solid var(--border-color);
+            border-radius: 6px;
+            padding: 16px;
+            margin-bottom: 12px;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+            transition: transform 0.2s;
+        }
+
+        .event-item:hover {
+            transform: translateY(-2px);
+        }
+
+        .timestamp {
+            font-size: 0.85em;
+            color: #586069;
+            margin-top: 8px;
+            display: block;
+        }
+    </style>
+</head>
+<body>
+    <h1>GitHub Webhook Events</h1>
+    <ul id="event-list">
+        <!-- Events will be rendered here -->
+    </ul>
+
+    <script>
+        let lastTimestamp = null;
+        let knownRequestIds = new Set();
+
+        async function fetchEvents() {
+            let url = '/api/events';
+            if (lastTimestamp) {
+                // Convert to ISO string for backend handling
+                url += `?last_timestamp=${encodeURIComponent(lastTimestamp)}`;
+            }
+
+            try {
+                const response = await fetch(url);
+                if (!response.ok) throw new Error('Network response was not ok');
+                
+                const events = await response.json();
+                if (events.length > 0) {
+                    // Records are sorted DESC by received_at in backend (index 0 is newest)
+                    // We want to process them to avoid duplicates and update lastTimestamp
+                    renderEvents(events);
+                    
+                    // Update lastTimestamp from the most recent event's received_at
+                    const newestEvent = events[0];
+                    if (newestEvent.received_at) {
+                        lastTimestamp = newestEvent.received_at;
+                    }
+                }
+            } catch (error) {
+                console.error('Error fetching events:', error);
+            }
+        }
+
+        function renderEvents(events) {
+            const list = document.getElementById('event-list');
+            
+            // Process events in reverse chronological order (oldest first) to append correctly
+            // or just prepend the new ones if we want newest at top.
+            // Let's prepend newest to the top.
+            
+            events.slice().reverse().forEach(event => {
+                // Duplicate check using request_id
+                if (knownRequestIds.has(event.request_id)) return;
+                knownRequestIds.add(event.request_id);
+
+                let message = '';
+                const { author, action, from_branch, to_branch, timestamp } = event;
+
+                if (action === 'PUSH') {
+                    message = `${author} pushed to ${to_branch} on ${timestamp}`;
+                } else if (action === 'PULL_REQUEST') {
+                    message = `${author} submitted a pull request from ${from_branch} to ${to_branch} on ${timestamp}`;
+                } else if (action === 'MERGE') {
+                    message = `${author} merged branch ${from_branch} to ${to_branch} on ${timestamp}`;
+                }
+
+                if (message) {
+                    const li = document.createElement('li');
+                    li.className = 'event-item';
+                    li.textContent = message;
+                    
+                    const timeSpan = document.createElement('span');
+                    timeSpan.className = 'timestamp';
+                    timeSpan.textContent = `Captured at: ${event.received_at}`;
+                    li.appendChild(timeSpan);
+
+                    // Prepend so newest is at the top
+                    list.insertBefore(li, list.firstChild);
+                }
+            });
+        }
+
+        // Initial fetch
+        fetchEvents();
+
+        // Poll every 15 seconds
+        setInterval(fetchEvents, 15000);
+    </script>
+</body>
+</html>
