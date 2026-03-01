@@ -57,9 +57,9 @@ def handle_webhook():
         parsed_data['author'] = payload.get('pusher', {}).get('name')
         parsed_data['action'] = "PUSH"
         parsed_data['from_branch'] = None
-        # Extract the to_branch from the ref string (e.g., refs/heads/main)
+        # Extract the to_branch by stripping 'refs/heads/'
         ref = payload.get('ref', '')
-        parsed_data['to_branch'] = ref.split('/')[-1] if ref else None
+        parsed_data['to_branch'] = ref.replace('refs/heads/', '') if ref else None
 
         timestamp_raw = head_commit.get('timestamp')
         if timestamp_raw:
@@ -79,6 +79,8 @@ def handle_webhook():
 
         parsed_data['request_id'] = str(pr.get('id'))
         parsed_data['author'] = pr.get('user', {}).get('login')
+        parsed_data['from_branch'] = pr.get('head', {}).get('ref')
+        parsed_data['to_branch'] = pr.get('base', {}).get('ref')
 
         if action_val == 'opened':
             parsed_data['action'] = "PULL_REQUEST"
@@ -88,10 +90,7 @@ def handle_webhook():
             # Ignore other pull request actions
             return jsonify({"message": f"Action '{action_val}' ignored"}), 200
 
-        parsed_data['from_branch'] = pr.get('head', {}).get('ref')
-        parsed_data['to_branch'] = pr.get('base', {}).get('ref')
-
-        timestamp_raw = pr.get('created_at')
+        timestamp_raw = pr.get('updated_at') or pr.get('created_at')
         if timestamp_raw:
             try:
                 dt = datetime.fromisoformat(timestamp_raw.replace('Z', '+00:00'))
