@@ -1,5 +1,5 @@
 import os
-from datetime import datetime
+from datetime import datetime, timedelta
 from flask import Flask, request, jsonify, render_template
 from pymongo import MongoClient
 from pymongo.errors import ConnectionFailure, OperationFailure
@@ -65,7 +65,9 @@ def handle_webhook():
         if timestamp_raw:
             try:
                 dt = datetime.fromisoformat(timestamp_raw.replace('Z', '+00:00'))
-                parsed_data['timestamp'] = dt.strftime("%Y-%m-%d %H:%M:%S UTC")
+                # Convert to IST (UTC+5:30)
+                dt_ist = dt + timedelta(hours=5, minutes=30)
+                parsed_data['timestamp'] = dt_ist.strftime("%Y-%m-%d %H:%M:%S IST")
             except ValueError:
                 parsed_data['timestamp'] = timestamp_raw
         else:
@@ -93,7 +95,9 @@ def handle_webhook():
         if timestamp_raw:
             try:
                 dt = datetime.fromisoformat(timestamp_raw.replace('Z', '+00:00'))
-                parsed_data['timestamp'] = dt.strftime("%Y-%m-%d %H:%M:%S UTC")
+                # Convert to IST (UTC+5:30)
+                dt_ist = dt + timedelta(hours=5, minutes=30)
+                parsed_data['timestamp'] = dt_ist.strftime("%Y-%m-%d %H:%M:%S IST")
             except ValueError:
                 parsed_data['timestamp'] = timestamp_raw
         else:
